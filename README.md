@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="/DQSquad.jpg" alt="Data Quality Squad Conversational Agent Logo" width="300"/>
+</p>
+
 # Data Quality Squad - Conversational Agent
 
 This directory contains an enhanced data quality assessment pipeline with a conversational agent interface.
