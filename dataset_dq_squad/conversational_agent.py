@@ -9,8 +9,6 @@ from google.adk.plugins.logging_plugin import LoggingPlugin
 from google.genai import types
 from .dq_pipeline import dq_pipeline_agent
 
-dq_pipeline_tool = AgentTool(dq_pipeline_agent)
-
 from .tools import (
     run_profiling_pipeline,
     build_dq_scorecard,
@@ -59,7 +57,7 @@ You have four tools:
    - Use the dataset_path from the workspace (from prepare_dataset_workspace)
    - Returns detailed column statistics and analysis
 
-3) dq_pipeline_tool(dataset_path: str) -> complete analysis
+3) dq_pipeline_agent(dataset_path: str) -> complete analysis
    - Use for full analysis: scorecard, fixes, and notebook
    - Use the dataset_path from the workspace
    - Runs complete pipeline and generates notebook
@@ -116,7 +114,7 @@ CONVERSATION STYLE:
         FunctionTool(prepare_dataset_workspace),
         FunctionTool(download_dataset),
         FunctionTool(run_profiling_pipeline),
-        dq_pipeline_tool
+        AgentTool(dq_pipeline_agent),
     ],
 )
 

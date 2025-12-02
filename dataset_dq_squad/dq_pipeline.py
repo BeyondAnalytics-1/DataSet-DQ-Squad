@@ -60,6 +60,7 @@ data_profiler = LlmAgent(
         "EXAMPLE OUTPUT FORMAT (do not change keys):\\n"
         "{\\n"
         "  \"dataset_name\": \"train\",\\n"
+        "  \"dataset_path\": \"/absolute/path/to/train.csv\",\\n"
         "  \"row_count\": 100,\\n"
         "  \"column_count\": 2,\\n"
         "  \"columns\": [\\n"
@@ -146,7 +147,7 @@ fixer_agent = LlmAgent(
 notebook_builder_agent = LlmAgent(
     name="NotebookBuilderAgent",
     model=Gemini(
-        model="gemini-2.5-flash-lite",
+        model="gemini-2.0-flash",
         retry_options=retry_config,
     ),
     description=(
@@ -155,26 +156,24 @@ notebook_builder_agent = LlmAgent(
         "previous agents."
     ),
     instruction=(
-        "You are the final agent in the DQ pipeline.\\n\\n"
-        "The conversation history contains:\\n"
-        "  1) The original user request with dataset_path (a CSV file path),\\n"
-        "  2) Dataset profile JSON (profiling step),\\n"
-        "  3) DQ scorecard JSON (scoring step),\\n"
-        "  4) DQ fixes JSON (fixer step).\\n\\n"
-        "Your job:\\n"
-        "1) Find the dataset_path from the original user request in the conversation.\\n"
-        "2) Read the three JSON objects from the conversation history.\\n"
-        "3) Call the build_notebook tool exactly once, passing:\\n"
-        "     - dataset_profile: the profiling JSON,\\n"
-        "     - dq_scorecard:   the scorecard JSON,\\n"
-        "     - dq_fixes:       the fixes JSON,\\n"
-        "     - profiling_markdown: a short markdown summary of the profiling step\\n"
-        "     - scorecard_markdown: a short markdown summary of the scorecard\\n"
-        "     - fixes_markdown: a short markdown summary of the proposed fixes\\n"
-        "     - dataset_path:   the original CSV file path from step 1\\n"
-        "     - output_path:    'dq_report.ipynb'.\\n"
-        "4) Return ONLY the file path string returned by build_notebook, with no "
-        "   extra commentary.\\n"
+        "You are the final agent in the DQ pipeline.\n\n"
+        "Your task:\n"
+        "1) Look at the conversation history and find the three JSON objects:\n"
+        "   - Dataset profile JSON (from DataProfilerAgent)\n"
+        "   - DQ scorecard JSON (from DQScorecardAgent)\n"
+        "   - DQ fixes JSON (from DQFixerAgent)\n\n"
+        "2) From the dataset profile JSON, extract the 'dataset_path' field value.\n\n"
+        "3) Call build_notebook with these exact arguments:\n"
+        "   - dataset_profile: the dataset profile JSON object\n"
+        "   - dq_scorecard: the DQ scorecard JSON object\n"
+        "   - dq_fixes: the DQ fixes JSON object\n"
+        "   - profiling_markdown: 'Profiling summary'\n"
+        "   - scorecard_markdown: 'Scorecard summary'\n"
+        "   - fixes_markdown: 'Proposed fixes summary'\n"
+        "   - dataset_path: the dataset_path value you extracted from step 2\n"
+        "   - output_path: 'dq_report.ipynb'\n\n"
+        "4) Return only the file path string that build_notebook returns.\n\n"
+        "IMPORTANT: Pass the JSON objects directly as dictionaries, not as strings."
     ),
     tools=[FunctionTool(build_notebook)],
     output_key="dq_notebook_path",

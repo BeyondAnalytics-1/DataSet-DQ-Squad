@@ -10,6 +10,7 @@ def profile_dataset(dataset_path: str) -> Dict[str, Any]:
 
     profile: Dict[str, Any] = {
         "dataset_name": path.stem,
+        "dataset_path": str(path.resolve()),  # Store absolute path
         "row_count": int(len(df)),
         "column_count": int(len(df.columns)),
         "columns": [],

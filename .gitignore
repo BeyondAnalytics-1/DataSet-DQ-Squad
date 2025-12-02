@@ -38,6 +38,7 @@ venv.bak/
 *.swo
 
 # Project Specific
+support_files/
 test_output_project/
 dataset_dq_squad/data/
 *.ipynb

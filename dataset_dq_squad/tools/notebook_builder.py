@@ -93,7 +93,98 @@ def build_notebook(
     dq_scorecard = ensure_dict(dq_scorecard, "dq_scorecard")
     dq_fixes = ensure_dict(dq_fixes, "dq_fixes")
 
+    # 1. Setup paths and copy dataset
+    src_path = Path(dataset_path).resolve()
+    ds_name = dataset_profile.get("dataset_name", src_path.stem)
     
+    # Use the directory of the original dataset as the project root if possible,
+    # or fall back to a default location.
+    # Ideally, we want to create a subfolder in the same dir as the dataset.
+    project_root = src_path.parent
+    
+    if project_root.name == ds_name:
+        project_dir = project_root
+    else:
+        project_dir = project_root / ds_name
+        project_dir.mkdir(parents=True, exist_ok=True)
+    
+    print(f"[build_notebook] Project directory: {project_dir}", flush=True)
+
+    # Copy dataset to project dir
+    dataset_filename = src_path.name
+    dest_path = project_dir / dataset_filename
+    
+    try:
+        if src_path.resolve() != dest_path.resolve():
+            shutil.copy2(src_path, dest_path)
+            print(f"[build_notebook] Copied dataset to: {dest_path}", flush=True)
+        else:
+            print(f"[build_notebook] Source and destination are the same, skipping copy.", flush=True)
+    except Exception as e:
+        print(f"[build_notebook] Warning: Failed to copy dataset: {e}", flush=True)
+
+    # Notebook path
+    nb_path = project_dir / output_path
+    
+    # 2. Extract Data
+    row_count = int(dataset_profile.get("row_count", 0))
+    col_count = int(dataset_profile.get("column_count", 0))
+    columns = dataset_profile.get("columns", [])
+    
+    # Normalize column info
+    for col in columns:
+        if "logical_dtype" not in col:
+            col["logical_dtype"] = col.get("dtype", "unknown")
+
+    duplicate_count = 0
+    duplicate_ratio = 0.0
+    # Try to find duplicate info in profile or scorecard
+    if "duplicate_rows" in dataset_profile:
+        duplicate_count = dataset_profile["duplicate_rows"]
+        duplicate_ratio = duplicate_count / row_count if row_count > 0 else 0
+    
+    dataset_score = int(dq_scorecard.get("dataset_score", 0))
+    col_scores = dq_scorecard.get("column_scores", [])
+    issues_by_category = dq_scorecard.get("issues_by_category", {})
+    correlations = dq_scorecard.get("correlations", [])
+    
+    fixes = dq_fixes.get("fixes", [])
+    fixes_summary = dq_fixes.get("summary", "")
+
+    # 3. Build Notebook Content
+    cells = []
+    
+    # Title Cell
+    cells.append(_markdown_cell(f"# Data Quality Report: {ds_name}"))
+    
+    # Imports Cell
+    cells.append(_code_cell("""import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from IPython.display import display, Markdown
+
+# Configuration
+pd.set_option('display.max_columns', None)
+pd.set_option('display.max_rows', 20)
+plt.style.use('seaborn-v0_8-whitegrid')
+%matplotlib inline
+"""))
+
+    # Load Data Cell
+    load_code = f"""# Load the dataset
+try:
+    df = pd.read_csv('{dataset_filename}')
+    print(f"Successfully loaded dataset with {{len(df)}} rows and {{len(df.columns)}} columns")
+    display(df.head())
+except Exception as e:
+    print(f"Error loading dataset: {{e}}")
+"""
+    cells.append(_code_cell(load_code))
+
+    # ==================================================================
+    # SECTION 1: EXECUTIVE SUMMARY
+    # ==================================================================
     exec_summary = f"""## Executive Summary
 
 **Overall Data Quality Score: {dataset_score}/100**
@@ -260,6 +351,19 @@ plt.show()
         cells.append(_code_cell(boxplot_code))
 
     # 2.5  Time-series if applicable
+    # Check for datetime columns in profile
+    has_datetime = False
+    datetime_info = {}
+    
+    # Simple check for datetime columns based on name or dtype
+    for col in columns:
+        name = col.get("name", "").lower()
+        dtype = col.get("dtype", "").lower()
+        if "date" in name or "time" in name or "datetime" in dtype:
+            has_datetime = True
+            # We don't have detailed stats here, but we can flag it
+            datetime_info[col.get("name")] = {"min": "N/A", "max": "N/A", "unique_dates": "N/A", "range_days": "N/A"}
+
     if has_datetime and datetime_info:
         ts_table_lines = [
             "### 2.5 Time-Series Columns",
@@ -578,9 +682,12 @@ else:
         "nbformat_minor": 5,
     }
 
+    print(f"[build_notebook] Writing notebook to: {nb_path}", flush=True)
     with nb_path.open("w", encoding="utf-8") as f:
         json.dump(notebook, f, indent=2)
+    print(f"[build_notebook] Notebook written successfully", flush=True)
 
+    print(f"[build_notebook] Creating README in: {project_dir}", flush=True)
     _create_readme(
         output_dir=project_dir,
         dataset_name=ds_name,
@@ -590,5 +697,7 @@ else:
         notebook_filename=Path(output_path).name,
         dataset_filename=dataset_filename
     )
+    print(f"[build_notebook] README created successfully", flush=True)
 
+    print(f"[build_notebook] Returning path: {str(nb_path)}", flush=True)
     return str(nb_path)
